@@ -7,7 +7,6 @@ module Types =
 
     type Point = Point of (int * int)
     type Board = Map<Point, Cell>
-    type PointBoard = Point * Board
 
     type GameState = { Board: Board; Generation: int }
 
@@ -49,8 +48,8 @@ module Utils =
     let convertToNum cell =
         match cell with
         | Some On -> 1
-        | _ -> 0
-
+        | Some Off
+        | None -> 0
 
     let movePointBy ((rowShift, columnShift): int * int) (Point (row, column): Point) =
         Point(row + rowShift, column + columnShift)
@@ -66,23 +65,41 @@ module Utils =
         | SW -> (1, -1)
         | NW -> (-1, -1)
 
-    let cellValue (point, board: Board) = point |> board.TryFind |> convertToNum
+    let getCell (point, board: Board) = point |> board.TryFind
 
-    let neighborsCount pointBoard =
-        let count acc _ = acc + cellValue pointBoard
-        ways |> List.fold count 0
-
-    let nextMove neighbors =
-        match neighbors with
-        | _ when neighbors < 2 -> Off
-        | _ when neighbors >= 2 && neighbors <= 3 -> On
-        | _ when neighbors > 3 -> Off
-        | _ -> Off
-
-    let setInitialState (points: Point list) (board: Board) =
-        let predicate (board: Board) point = board.Add(point, On)
-        points |> List.fold predicate board
-
-    let computeGeneration = neighborsCount >> nextMove
+    let cellValue pointBoard = pointBoard |> (getCell >> convertToNum)
 
     let movePoint = movePointTo >> movePointBy
+
+    let neighborsCount (point, board: Board) =
+        ways
+        |> List.fold (fun acc direction -> acc + cellValue (movePoint direction point, board)) 0
+
+    let nextMove cell neighbors =
+        match cell with
+        | Some On ->
+            match neighbors with
+            | _ when neighbors < 2 -> Off
+            | _ when neighbors >= 2 && neighbors <= 3 -> On
+            | _ when neighbors > 3 -> Off
+            | _ -> Off
+        | Some Off ->
+            match neighbors with
+            | _ when neighbors = 3 -> On
+            | _ -> Off
+        | None -> Off
+
+    let setInitialState (points: Point list) (board: Board) =
+        points
+        |> List.fold (fun (acc: Board) point -> acc.Add(point, On)) board
+
+
+    let applyGeneration (board: Board) =
+        board
+        |> Map.fold (fun (acc: Board) point _ ->
+            let pointBoard = (point, board)
+
+            let next =
+                nextMove (getCell pointBoard) (neighborsCount pointBoard)
+
+            acc.Add(point, next)) Map.empty

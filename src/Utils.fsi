@@ -39,3 +39,4 @@ module Utils =
     val movePoint: (Direction -> Point -> Point)
     val setInitialState: points:Point list -> board:Board -> Board
     val convertToNum: cell:Cell option -> int
+    val applyGeneration: board:Board -> Board
